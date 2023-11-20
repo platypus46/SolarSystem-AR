@@ -1,7 +1,7 @@
-import React, { Suspense, useEffect, useRef } from 'react';
-import { Canvas, useThree,  useFrame  } from '@react-three/fiber';
+import React, { Suspense, useEffect, useRef,  useState } from 'react';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { Environment, OrbitControls, useGLTF } from '@react-three/drei';
-import { DirectionalLight as ThreeDirectionalLight,Object3D } from 'three';
+import { DirectionalLight as ThreeDirectionalLight, Object3D } from 'three';
 
 interface DirectionalLightProps {
   position: [number, number, number];
@@ -9,32 +9,50 @@ interface DirectionalLightProps {
   color: string;
 }
 
-
+const ORBIT_SCALE = 2; 
+const EARTH_ORBIT_SPEED = 2 * Math.PI / 100;
+const EARTH_ROTATION_SPEED = EARTH_ORBIT_SPEED * 365.25;
 const earthPosition = { x: 0, y: 0, z: 0 };
+
+function calculateSpeeds(planetDayLength: number, planetOrbitPeriod: number): { orbitSpeed: number, rotationSpeed: number } {
+  return {
+    orbitSpeed: EARTH_ORBIT_SPEED / planetOrbitPeriod,
+    rotationSpeed: (planetDayLength < 0 ? -1 : 1) * EARTH_ROTATION_SPEED / Math.abs(planetDayLength),
+  };
+}
 
 interface PlanetModelProps {
   modelPath: string;
   orbitRadius: number;
   orbitSpeed: number;
-  isEarth?: boolean; 
+  rotationSpeed: number;
+  orbitalInclination: number;
+  orbitalEccentricity: number;
+  isEarth?: boolean;
 }
 
-function PlanetFunc({ modelPath, orbitRadius, orbitSpeed, isEarth = false }: PlanetModelProps) {
+function PlanetFunc({ modelPath, orbitRadius, orbitSpeed, rotationSpeed, orbitalInclination, orbitalEccentricity, isEarth = false }: PlanetModelProps) {
   const planetRef = useRef<Object3D>(null);
   const gltf = useGLTF(modelPath);
 
   useFrame(({ clock }) => {
     const elapsedTime = clock.getElapsedTime();
-    const angle = elapsedTime * orbitSpeed;
+    const orbitAngle = elapsedTime * orbitSpeed;
+    const rotationAngle = elapsedTime * rotationSpeed;
 
     if (planetRef.current) {
-      const x = orbitRadius * Math.cos(angle);
-      const z = orbitRadius * Math.sin(angle);
+      const a = orbitRadius; 
+      const b = orbitRadius * Math.sqrt(1 - Math.pow(orbitalEccentricity, 2)); 
+      const x = a * Math.cos(orbitAngle);
+      const z = b * Math.sin(orbitAngle);
+      const y = x * Math.tan(orbitalInclination * Math.PI / 180);
 
-      planetRef.current.position.set(x, 0, z);
+      planetRef.current.position.set(x, y, z);
+      planetRef.current.rotation.y = rotationAngle;
 
       if (isEarth) {
         earthPosition.x = x;
+        earthPosition.y = y;
         earthPosition.z = z;
       }
     }
@@ -43,112 +61,125 @@ function PlanetFunc({ modelPath, orbitRadius, orbitSpeed, isEarth = false }: Pla
   return <primitive ref={planetRef} object={gltf.scene} />;
 }
 
-
 function SunModel() {
   const gltf = useGLTF('/images/SolarSystemElements/sun.gltf');
   return <primitive object={gltf.scene} />;
 }
 
 function MercuryModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(58.6, 0.24);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/mercury.gltf"
-      orbitRadius={100}
-      orbitSpeed={4.15} 
+      orbitRadius={57.9 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={7.0} 
+      orbitalEccentricity={0.2056} 
     />
   );
 }
 
 function VenusModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(-243, 0.62);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/venus.gltf"
-      orbitRadius={200}
-      orbitSpeed={1.62} 
+      orbitRadius={108.2 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={3.39} 
+      orbitalEccentricity={0.0068} 
     />
   );
 }
 
 function EarthModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(1, 1);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/earth.gltf"
-      orbitRadius={300}
-      orbitSpeed={1.0}
-      isEarth={true}
+      orbitRadius={149.6 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={0} 
+      orbitalEccentricity={0.0167} 
     />
   );
-}
-
-function MoonModel() {
-  const moonRef = useRef<Object3D>(null);
-  const gltf = useGLTF('/images/SolarSystemElements/moon.gltf');
-
-  useFrame(({ clock }) => {
-    const elapsedTime = clock.getElapsedTime();
-    const angle = elapsedTime * 13.38;
-
-    if (moonRef.current) {
-      const x = earthPosition.x + (20 * Math.cos(angle));
-      const z = earthPosition.z + (20 * Math.sin(angle));
-      moonRef.current.position.set(x, 0, z);
-    }
-  });
-
-  return <primitive ref={moonRef} object={gltf.scene} />;
 }
 
 
 function MarsModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(1.03, 1.88);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/mars.gltf"
-      orbitRadius={500}
-      orbitSpeed={0.53} 
+      orbitRadius={227.9 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={1.85} 
+      orbitalEccentricity={0.0935} 
     />
   );
 }
 
+
 function JupiterModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(0.41, 11.86);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/jupiter.gltf"
-      orbitRadius={600}
-      orbitSpeed={0.084}
+      orbitRadius={778.5 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={1.31} 
+      orbitalEccentricity={0.0489} 
     />
   );
 }
 
+
 function SaturnModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(0.45, 29.46);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/saturn.gltf"
-      orbitRadius={700}
-      orbitSpeed={0.034} 
+      orbitRadius={1433.5 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={2.49} 
+      orbitalEccentricity={0.0565} 
     />
   );
 }
 
 function UranusModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(-0.72, 84.01);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/uranus.gltf"
-      orbitRadius={800}
-      orbitSpeed={0.012} 
+      orbitRadius={2872.5 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={0.77} 
+      orbitalEccentricity={0.0463} 
     />
   );
 }
 
 function NeptuneModel() {
+  const { orbitSpeed, rotationSpeed } = calculateSpeeds(0.67, 164.8);
   return (
     <PlanetFunc
       modelPath="/images/SolarSystemElements/neptune.gltf"
-      orbitRadius={900}
-      orbitSpeed={0.006} 
+      orbitRadius={4495.1 * ORBIT_SCALE}
+      orbitSpeed={orbitSpeed}
+      rotationSpeed={rotationSpeed}
+      orbitalInclination={1.77} 
+      orbitalEccentricity={0.0113} 
     />
   );
 }
-
 
 function DirectionalLight(props: DirectionalLightProps) {
   const { scene } = useThree();
@@ -176,7 +207,6 @@ export default function Home() {
           <MercuryModel/>
           <VenusModel/>
           <EarthModel/>
-          <MoonModel/>
           <MarsModel/>
           <JupiterModel/>
           <SaturnModel/>
@@ -197,4 +227,3 @@ export default function Home() {
     </div>
   );
 }
-
